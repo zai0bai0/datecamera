@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Date Camera">
+<title>Date Camera</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #000; font-family: -apple-system, sans-serif; height: 100%; overflow: hidden; }
+  #app { width: 100vw; height: 100vh; background: #000; display: flex; flex-direction: column; justify-content: space-between; }
+  #viewfinder-wrap { position: relative; flex: 1; overflow: hidden; }
+  #video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #canvas { display: none; }
+  #date-overlay {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    font-size: 22px;
+    font-weight: 500;
+    color: #fff;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.9);
+    letter-spacing: 0.5px;
+    pointer-events: none;
+  }
+  #controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 40px 40px;
+    background: #000;
+  }
+  #shutter {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: #fff;
+    border: 4px solid rgba(255,255,255,0.35);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #shutter:active { transform: scale(0.93); }
+  #shutter-inner { width: 56px; height: 56px; border-radius: 50%; background: #fff; border: 2px solid #ccc; }
+  .icon-btn {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: none; cursor: pointer; color: #fff; font-size: 24px;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #settings-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 16px;
+    background: #000;
+    flex-wrap: wrap;
+  }
+  .setting-label { font-size: 12px; color: rgba(255,255,255,0.45); }
+  select {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: 0.5px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-size: 13px;
+    font-family: -apple-system, sans-serif;
+  }
+  select option { background: #222; }
+
+  #preview-wrap {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+  }
+  #preview-img { width: 100%; flex: 1; object-fit: cover; display: block; }
+  #preview-actions {
+    display: flex; gap: 12px;
+    padding: 16px 24px 40px;
+    background: #000;
+  }
+  .action-btn {
+    flex: 1; padding: 14px;
+    border-radius: 12px;
+    border: 0.5px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.1);
+    color: #fff; font-size: 16px; font-weight: 500;
+    cursor: pointer; font-family: -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .action-btn.primary { background: #fff; color: #000; border-color: #fff; }
+
+  #start-screen {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 20px; padding: 60px 32px;
+    flex: 1;
+  }
+  #start-screen h1 { color: #fff; font-size: 22px; font-weight: 500; }
+  #start-screen p { color: rgba(255,255,255,0.5); font-size: 15px; text-align: center; line-height: 1.6; }
+  #start-btn {
+    padding: 14px 36px; background: #fff; color: #000;
+    border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 500; cursor: pointer;
+    font-family: -apple-system, sans-serif;
+  }
+  #msg { color: rgba(255,255,255,0.5); font-size: 13px; text-align: center; padding: 8px; background: #000; }
+  #camera-emoji { font-size: 56px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="start-screen">
+    <div id="camera-emoji">📷</div>
+    <h1>Date Camera</h1>
+    <p>Photos stamped with the date in dd.mm.yy format on the lower left.<br><br>Your private camera — nothing leaves your device.</p>
+    <button id="start-btn" onclick="startCamera()">Allow camera access</button>
+  </div>
+
+  <div id="viewfinder-wrap" style="display:none;">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div id="date-overlay"></div>
+  </div>
+
+  <div id="preview-wrap">
+    <img id="preview-img" alt="photo with date stamp" />
+    <div id="preview-actions">
+      <button class="action-btn" onclick="retake()">Retake</button>
+      <button class="action-btn primary" onclick="savePhoto()">Save photo</button>
+    </div>
+  </div>
+
+  <div id="settings-bar" style="display:none;">
+    <span class="setting-label">Size</span>
+    <select id="font-size-select" onchange="updateSettings()">
+      <option value="16">Small</option>
+      <option value="22" selected>Medium</option>
+      <option value="30">Large</option>
+    </select>
+    <span class="setting-label">Color</span>
+    <select id="color-select" onchange="updateSettings()">
+      <option value="white" selected>White</option>
+      <option value="yellow">Yellow</option>
+      <option value="black">Black</option>
+    </select>
+  </div>
+
+  <div id="controls" style="display:none;">
+    <button class="icon-btn" onclick="flipCamera()" aria-label="Flip camera">⟳</button>
+    <button id="shutter" onclick="takePhoto()" aria-label="Take photo">
+      <div id="shutter-inner"></div>
+    </button>
+    <div style="width:48px"></div>
+  </div>
+
+  <div id="msg"></div>
+
+</div>
+<script>
+let stream = null;
+let facingMode = 'environment';
+let fontSize = 22;
+let fontColor = 'white';
+
+function getDate() {
+  const n = new Date();
+  const dd = String(n.getDate()).padStart(2,'0');
+  const mm = String(n.getMonth()+1).padStart(2,'0');
+  const yy = String(n.getFullYear()).slice(-2);
+  return `${dd}.${mm}.${yy}`;
+}
+
+function updateDateOverlay() {
+  const el = document.getElementById('date-overlay');
+  if (el) el.textContent = getDate();
+}
+
+function updateSettings() {
+  fontSize = parseInt(document.getElementById('font-size-select').value);
+  fontColor = document.getElementById('color-select').value;
+  const o = document.getElementById('date-overlay');
+  o.style.fontSize = fontSize + 'px';
+  o.style.color = fontColor === 'yellow' ? '#FFE44D' : fontColor === 'black' ? '#111' : '#fff';
+  o.style.textShadow = fontColor === 'black' ? '0 1px 3px rgba(255,255,255,0.7)' : '0 1px 6px rgba(0,0,0,0.9)';
+}
+
+async function startCamera() {
+  document.getElementById('start-screen').style.display = 'none';
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 2560 } },
+      audio: false
+    });
+    document.getElementById('video').srcObject = stream;
+    document.getElementById('viewfinder-wrap').style.display = 'block';
+    document.getElementById('controls').style.display = 'flex';
+    document.getElementById('settings-bar').style.display = 'flex';
+    updateDateOverlay();
+    updateSettings();
+    setInterval(updateDateOverlay, 30000);
+    setMsg('');
+  } catch(e) {
+    document.getElementById('start-screen').style.display = 'flex';
+    setMsg('Camera denied. In Safari: Settings → Safari → Camera → Allow');
+  }
+}
+
+async function flipCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 2560 } },
+      audio: false
+    });
+    document.getElementById('video').srcObject = stream;
+  } catch(e) {
+    setMsg('Could not flip camera.');
+    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  }
+}
+
+function takePhoto() {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const vw = video.videoWidth || 1280;
+  const vh = video.videoHeight || 960;
+  canvas.width = vw;
+  canvas.height = vh;
+  const ctx = canvas.getContext('2d');
+  if (facingMode === 'user') { ctx.translate(vw,0); ctx.scale(-1,1); }
+  ctx.drawImage(video, 0, 0, vw, vh);
+  if (facingMode === 'user') ctx.setTransform(1,0,0,1,0,0);
+
+  const scale = vw / window.innerWidth;
+  const scaledFont = Math.round(fontSize * scale);
+  const margin = Math.round(20 * scale);
+  const colorMap = { white: '#ffffff', yellow: '#FFE44D', black: '#111111' };
+  ctx.font = `500 ${scaledFont}px -apple-system, sans-serif`;
+  ctx.textBaseline = 'bottom';
+  ctx.shadowColor = fontColor === 'black' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.85)';
+  ctx.shadowBlur = Math.round(6 * scale);
+  ctx.fillStyle = colorMap[fontColor] || '#ffffff';
+  ctx.fillText(getDate(), margin, vh - margin);
+
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+  document.getElementById('preview-img').src = dataUrl;
+  document.getElementById('viewfinder-wrap').style.display = 'none';
+  document.getElementById('controls').style.display = 'none';
+  document.getElementById('settings-bar').style.display = 'none';
+  document.getElementById('preview-wrap').style.display = 'flex';
+}
+
+function retake() {
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('viewfinder-wrap').style.display = 'block';
+  document.getElementById('controls').style.display = 'flex';
+  document.getElementById('settings-bar').style.display = 'flex';
+}
+
+async function savePhoto() {
+  const img = document.getElementById('preview-img');
+  const dataUrl = img.src;
+
+  // Convert dataURL to blob
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const file = new File([blob], `photo_${getDate().replace(/\./g,'-')}.jpg`, { type: 'image/jpeg' });
+
+  // Use native iOS share sheet if available (saves directly to Photos)
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Date Camera Photo' });
+      setMsg('');
+      setTimeout(() => { retake(); }, 500);
+    } catch(e) {
+      if (e.name !== 'AbortError') setMsg('Could not share. Try long-pressing the photo to save.');
+    }
+  } else {
+    // Fallback for non-iOS
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `photo_${getDate().replace(/\./g,'-')}.jpg`;
+    a.click();
+    setMsg('Photo downloaded!');
+    setTimeout(() => { retake(); setMsg(''); }, 1500);
+  }
+}
+
+function setMsg(t) { document.getElementById('msg').textContent = t; }
+</script>
+</body>
+</html>
